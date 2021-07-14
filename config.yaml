@@ -1,7 +1,8 @@
 path:
-  data_file_name: df.csv
+  data_file_name: df/csv
   checkpoint_path: checkpoints
 model:
+  d_model: 768
   n_classes: 2
   nhead: 3
   ntimes: 3
