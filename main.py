@@ -12,6 +12,7 @@ from transformers import BertModel, BertTokenizer
 from sklearn.model_selection import train_test_split
 from omegaconf import DictConfig
 import hydra
+from pytorch_lightning.loggers import WandbLogger
 
 
 class CustumAttentionDataset(Dataset):
@@ -191,22 +192,22 @@ class CustumAttention(pl.LightningModule):
         epoch_preds = torch.cat([x["batch_preds"] for x in outputs])
         epoch_labels = torch.cat([x["batch_labels"] for x in outputs])
         epoch_loss = self.criterion(epoch_preds, epoch_labels)
-        self.log(f"{mode}_loss", epoch_loss, logger=True)
+        self.log(f"{mode}_loss", epoch_loss)
 
         num_correct = (epoch_preds.argmax(dim=1) == epoch_labels).sum().item()
         epoch_accuracy = num_correct / len(epoch_labels)
-        self.log(f"{mode}_accuracy", epoch_accuracy, logger=True)
+        self.log(f"{mode}_accuracy", epoch_accuracy)
 
     def validation_epoch_end(self, outputs, mode="val"):
 
         epoch_preds = torch.cat([x["batch_preds"] for x in outputs])
         epoch_labels = torch.cat([x["batch_labels"] for x in outputs])
         epoch_loss = self.criterion(epoch_preds, epoch_labels)
-        self.log(f"{mode}_loss", epoch_loss, logger=True)
+        self.log(f"{mode}_loss", epoch_loss)
 
         num_correct = (epoch_preds.argmax(dim=1) == epoch_labels).sum().item()
         epoch_accuracy = num_correct / len(epoch_labels)
-        self.log(f"{mode}_accuracy", epoch_accuracy, logger=True)
+        self.log(f"{mode}_accuracy", epoch_accuracy)
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
@@ -227,13 +228,15 @@ def make_callbacks(min_delta, patience, checkpoint_path):
     return [early_stop_callback, checkpoint_callback]
 
 
-@hydra.main(config_path="config.yaml")
+@hydra.main(config_path=".", config_name="config")
 def main(cfg: DictConfig):
     cwd = hydra.utils.get_original_cwd()
-    df_path = os.path.join(cwd, cfg.path.data_file_name)
-    checkpoint_path = os.path.join(cwd, cfg.training.checkpoint_path)
-
-    df = pd.read_csv(df_path).dropna().reset_index(drop=True)
+    wandb_logger = WandbLogger(
+        name=("exp_" + str(cfg.wandb.exp_num)),
+        project=cfg.wandb.project,
+    )
+    checkpoint_path = os.path.join(cwd, cfg.path.checkpoint_path)
+    df = pd.read_csv(cfg.path.data_file_name).dropna().reset_index(drop=True)
     train, test = train_test_split(df, test_size=cfg.training.test_size)
     data_module = CreateDataModule(
         train, test, cfg.training.batch_size, cfg.training.max_length, "tweet"
@@ -241,7 +244,7 @@ def main(cfg: DictConfig):
     data_module.setup()
 
     call_backs = make_callbacks(
-        cfg.training.min_delta, cfg.training.patience, checkpoint_path
+        cfg.callbacks.patience_min_delta, cfg.callbacks.patience, checkpoint_path
     )
     model = CustumAttention(
         n_classes=cfg.model.n_classes,
@@ -249,17 +252,18 @@ def main(cfg: DictConfig):
         nhead=cfg.model.nhead,
         ntimes=cfg.model.ntimes,
         learning_rate=cfg.training.learning_rate,
-        dim_feedforward=cfg.training.dim_feedforward,
-        dropout=cfg.training.dim_feedforward,
-        activation=cfg.training.activation,
-        layer_norm_eps=cfg.training.layer_norm_eps,
-        max_length=cfg.training.max_length,
+        dim_feedforward=cfg.model.dim_feedforward,
+        dropout=cfg.model.dropout,
+        activation=cfg.model.activation,
+        layer_norm_eps=cfg.model.layer_norm_eps,
+        max_length=cfg.model.max_length,
     )
     trainer = pl.Trainer(
         max_epochs=cfg.training.n_epochs,
         gpus=1,
         progress_bar_refresh_rate=30,
         callbacks=call_backs,
+        logger=wandb_logger,
     )
     trainer.fit(model, data_module)
 
