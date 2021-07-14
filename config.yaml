@@ -1,3 +1,6 @@
+wandb:
+  project: imp_est 
+  exp_num: 1
 path:
   data_file_name: df/csv
   checkpoint_path: checkpoints
