@@ -231,11 +231,15 @@ def make_callbacks(min_delta, patience, checkpoint_path):
 @hydra.main(config_path=".", config_name="config")
 def main(cfg: DictConfig):
     cwd = hydra.utils.get_original_cwd()
+    checkpoint_path = os.path.join(cwd, cfg.path.checkpoint_path)
     wandb_logger = WandbLogger(
+        save_dir=checkpoint_path,
         name=("exp_" + str(cfg.wandb.exp_num)),
         project=cfg.wandb.project,
+        tags=cfg.wandb.tags,
+        log_model=True,
     )
-    checkpoint_path = os.path.join(cwd, cfg.path.checkpoint_path)
+    wandb_logger.log_hyperparams(cfg)
     df = pd.read_csv(cfg.path.data_file_name).dropna().reset_index(drop=True)
     train, test = train_test_split(df, test_size=cfg.training.test_size)
     data_module = CreateDataModule(
@@ -266,6 +270,7 @@ def main(cfg: DictConfig):
         logger=wandb_logger,
     )
     trainer.fit(model, data_module)
+    wandb_logger.finalize()
 
 
 if __name__ == "__main__":
