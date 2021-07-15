@@ -249,7 +249,7 @@ def main(cfg: DictConfig):
     )
     wandb_logger.log_hyperparams(cfg)
     df = pd.read_csv(cfg.path.data_file_name).dropna().reset_index(drop=True)
-    train, test = train_test_split(df, test_size=cfg.training.test_size)
+    train, test = train_test_split(df, test_size=cfg.training.test_size, shuffle=True)
     data_module = CreateDataModule(
         train, test, cfg.training.batch_size, cfg.training.max_length, "tweet"
     )
