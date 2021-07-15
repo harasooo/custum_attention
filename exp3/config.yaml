@@ -1,0 +1,28 @@
+wandb:
+  project: imp_est 
+  exp_num: 3
+  tags: [attention]
+path:
+  data_file_name: df/csv
+  checkpoint_path: checkpoints
+model:
+  d_model: 768
+  n_classes: 2
+  nhead: 3
+  ntimes: 3
+  dim_feedforward: 1024
+  dropout: 0.4
+  activation: gelu
+  layer_norm_eps: 0.00001
+  max_length: 144
+training:
+  test_size: 0.3
+  n_epochs: 30
+  batch_size: 128
+  max_length: 144
+  learning_rate: 0.005
+  text_column_name: text
+  label_column_name: label
+callbacks:
+  patience: 5
+  patience_min_delta: 0
