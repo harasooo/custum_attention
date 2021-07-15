@@ -13,6 +13,8 @@ from sklearn.model_selection import train_test_split
 from omegaconf import DictConfig
 import hydra
 from pytorch_lightning.loggers import WandbLogger
+from torchmetrics.functional import accuracy
+from torchmetrics.functional import auroc
 
 
 class CustumAttentionDataset(Dataset):
@@ -164,7 +166,7 @@ class CustumAttention(pl.LightningModule):
         self.lr = learning_rate
         self.ntimes = ntimes
         self.criterion = nn.CrossEntropyLoss()
-        self.softmax = nn.Softmax(dim=1)
+        self.n_classes = n_classes
 
         for param in self.emb.parameters():
             param.requires_grad = False
@@ -180,43 +182,40 @@ class CustumAttention(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(inputs=x)
-        loss = self.criterion(y_hat, y)
+        loss = self.criterioncriterion(y_hat, y)
         return {"loss": loss, "batch_preds": y_hat, "batch_labels": y}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(inputs=x)
-        loss = self.criterion(y_hat, y)
+        loss = self.criterioncriterion(y_hat, y)
         return {"loss": loss, "batch_preds": y_hat, "batch_labels": y}
 
     def training_epoch_end(self, outputs, mode="train"):
-        epoch_preds = torch.cat([x["batch_preds"] for x in outputs])
+        epoch_y_hats = torch.cat([x["batch_preds"] for x in outputs])
         epoch_labels = torch.cat([x["batch_labels"] for x in outputs])
-        epoch_loss = self.criterion(epoch_preds, epoch_labels)
+        epoch_loss = self.criterion(epoch_y_hats, epoch_labels)
         self.log(f"{mode}_loss", epoch_loss)
 
-        num_correct = (epoch_preds.argmax(dim=1) == epoch_labels).sum().item()
-        epoch_accuracy = num_correct / len(epoch_labels)
+        _, epoch_preds = torch.max(epoch_y_hats, 1)
+        epoch_accuracy = accuracy(epoch_preds, epoch_labels)
         self.log(f"{mode}_accuracy", epoch_accuracy)
 
-        self.log(f"{mode}_pred", epoch_preds)
-
-        self.log(f"{mode}_pred_after_softmax", self.softmax(epoch_preds))
+        epoch_auroc = auroc(epoch_y_hats, epoch_labels, num_classes=self.n_classes)
+        self.log(f"{mode}_auroc", epoch_auroc)
 
     def validation_epoch_end(self, outputs, mode="val"):
-
-        epoch_preds = torch.cat([x["batch_preds"] for x in outputs])
+        epoch_y_hats = torch.cat([x["batch_preds"] for x in outputs])
         epoch_labels = torch.cat([x["batch_labels"] for x in outputs])
-        epoch_loss = self.criterion(epoch_preds, epoch_labels)
+        epoch_loss = self.criterion(epoch_y_hats, epoch_labels)
         self.log(f"{mode}_loss", epoch_loss)
 
-        num_correct = (epoch_preds.argmax(dim=1) == epoch_labels).sum().item()
-        epoch_accuracy = num_correct / len(epoch_labels)
-        self.log(f"{mode}_accuracy", self.softmax(epoch_accuracy))
+        _, epoch_preds = torch.max(epoch_y_hats, 1)
+        epoch_accuracy = accuracy(epoch_preds, epoch_labels)
+        self.log(f"{mode}_accuracy", epoch_accuracy)
 
-        self.log(f"{mode}_pred", epoch_preds)
-
-        self.log(f"{mode}_pred_after_softmax", self.softmax(epoch_preds))
+        epoch_auroc = auroc(epoch_y_hats, epoch_labels, num_classes=self.n_classes)
+        self.log(f"{mode}_auroc", epoch_auroc)
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
