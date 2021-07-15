@@ -241,7 +241,6 @@ def main(cfg: DictConfig):
     cwd = hydra.utils.get_original_cwd()
     checkpoint_path = os.path.join(cwd, cfg.path.checkpoint_path)
     wandb_logger = WandbLogger(
-        save_dir=checkpoint_path,
         name=("exp_" + str(cfg.wandb.exp_num)),
         project=cfg.wandb.project,
         tags=cfg.wandb.tags,
