@@ -1,6 +1,7 @@
 wandb:
   project: imp_est 
   exp_num: 1
+  tags: [attention]
 path:
   data_file_name: df/csv
   checkpoint_path: checkpoints

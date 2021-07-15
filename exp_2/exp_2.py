@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping
 from torch.utils.data import DataLoader, Dataset
 from transformers import BertModel, BertTokenizer
 from sklearn.model_selection import train_test_split
@@ -217,15 +217,7 @@ def make_callbacks(min_delta, patience, checkpoint_path):
     early_stop_callback = EarlyStopping(
         monitor="val_loss", min_delta=min_delta, patience=patience, mode="min"
     )
-
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=checkpoint_path,
-        filename="{epoch}",
-        verbose=True,
-        monitor="val_loss",
-        mode="min",
-    )
-    return [early_stop_callback, checkpoint_callback]
+    return [early_stop_callback]
 
 
 @hydra.main(config_path=".", config_name="config")
@@ -234,7 +226,10 @@ def main(cfg: DictConfig):
     wandb_logger = WandbLogger(
         name=("exp_" + str(cfg.wandb.exp_num)),
         project=cfg.wandb.project,
+        tags=cfg.wandb.tags,
+        log_model=True,
     )
+    wandb_logger.log_hyperparams(cfg)
     checkpoint_path = os.path.join(cwd, cfg.path.checkpoint_path)
     df = pd.read_csv(cfg.path.data_file_name).dropna().reset_index(drop=True)
     train, test = train_test_split(df, test_size=cfg.training.test_size)
